@@ -8,11 +8,13 @@ fn main() {
     let lines = BufReader::new(input).lines();
 
     let mut this_elf = 0;
-    let mut most_calories = 0;
+
+    let mut elves = Vec::new();
+
     for line in lines {
         let line = line.unwrap();
         if line.is_empty() {
-            most_calories = most_calories.max(this_elf);
+            elves.push(this_elf);
             this_elf = 0;
         } else {
             let cal: i32 = line.parse().unwrap();
@@ -20,5 +22,7 @@ fn main() {
         }
     }
 
-    println!("Most calories: {}", most_calories);
+    elves.sort_by(|a, b| b.cmp(a));
+
+    println!("calories {}, {}, {}", elves[0], elves[1], elves[2]);
 }
