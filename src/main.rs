@@ -13,17 +13,17 @@ fn main() {
         let line = line.unwrap();
         score += match line.as_str() {
             // opponent picks rock
-            "A X" => 1 + 3, // i pick rock
-            "A Y" => 2 + 6, // paper
-            "A Z" => 3,     // scissors
+            "A X" => 0 + 3, // i lose, scissors
+            "A Y" => 3 + 1, // i draw, rock
+            "A Z" => 6 + 2, // i win,  paper
             // picks paper
-            "B X" => 1,
-            "B Y" => 2 + 3,
-            "B Z" => 3 + 6,
+            "B X" => 0 + 1, // lose, rock
+            "B Y" => 3 + 2, // draw, paper
+            "B Z" => 6 + 3, // win, scissors
             // picks scissors
-            "C X" => 1 + 6,
-            "C Y" => 2,
-            "C Z" => 3 + 3,
+            "C X" => 0 + 2, // lose paper
+            "C Y" => 3 + 3, // draw scissors
+            "C Z" => 6 + 1, // win rock
             unknown => {
                 println!("unexpected entry {}", unknown);
                 0
