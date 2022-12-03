@@ -4,7 +4,6 @@ use std::{
 };
 
 fn score_for(ch: u8) -> usize {
-    dbg!(ch);
     match ch {
         b'a'..=b'z' => (ch - b'a' + 1).into(),
         b'A'..=b'Z' => (ch - b'A' + 27).into(),
@@ -13,28 +12,26 @@ fn score_for(ch: u8) -> usize {
     }
 }
 
-fn score_for_line(line: &[u8]) -> usize {
-    let (l, r) = line.split_at(line.len() / 2);
-    for needle in l {
-        if r.contains(needle) {
-            return score_for(*needle);
-        }
-    }
-    panic!("couldn't find duplicate character in line!");
-}
-
 fn main() {
     let input = File::open("input-day-3.txt").unwrap();
-    let lines = BufReader::new(input).lines();
+    let lines: std::io::Result<Vec<String>> = BufReader::new(input).lines().collect();
 
     let mut score = 0;
 
-    for line in lines {
-        // there's EXACTLY one dupe per character per line, but that one character may be duplicated
-        // multiple times. it's all ascii, too, so working with bytes is easier.
-        let line = line.unwrap();
-        score += score_for_line(line.as_bytes());
+    let chars = (b'a'..=b'z').chain(b'A'..=b'Z');
+
+    for line in lines.unwrap().as_slice().chunks_exact(3) {
+        let str_1 = line[0].as_bytes();
+        let str_2 = line[1].as_bytes();
+        let str_3 = line[2].as_bytes();
+
+        // we're guaranteed exactly one common item type, no more, no less.
+        for ch in chars.clone() {
+            if str_1.contains(&ch) && str_2.contains(&ch) && str_3.contains(&ch) {
+                score += score_for(ch);
+            }
+        }
     }
 
-    println!("total score: {}", score);
+    println!("score {}", score);
 }
