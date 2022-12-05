@@ -17,14 +17,13 @@ fn main() {
         let y_low: i32 = vals[2].parse().unwrap();
         let y_high: i32 = vals[3].parse().unwrap();
 
-        if x_low >= y_low && x_high <= y_high {
-            // x contained within y
+        let x_range = x_low..=x_high;
+        let y_range = y_low..=y_high;
+
+        if x_range.contains(&y_low) || x_range.contains(&y_high) {
             score += 1;
-        } else if y_low >= x_low && y_high <= x_high {
-            // y contained within x
+        } else if y_range.contains(&x_low) || y_range.contains(&x_high) {
             score += 1;
-        } else {
-            println!("{}", line);
         }
     }
 
