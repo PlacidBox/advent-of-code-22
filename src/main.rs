@@ -35,14 +35,13 @@ fn main() {
         // each line is 'move <count> from <src> to <dst>', like 'move 1 from 9 to 2'
         let vals: Vec<&str> = line.split(' ').collect();
 
-        let count: i32 = vals[1].parse().unwrap();
+        let count: usize = vals[1].parse().unwrap();
         let source: usize = vals[3].parse::<usize>().unwrap() - 1;
         let dest: usize = vals[5].parse::<usize>().unwrap() - 1;
 
-        for _ in 0..count {
-            let cr = stacks[source].pop().unwrap();
-            stacks[dest].push(cr);
-        }
+        let src = &mut stacks[source];
+        let mut moved = src.split_off(src.len() - count);
+        stacks[dest].append(&mut moved);
     }
 
     dbg!(stacks);
