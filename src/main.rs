@@ -52,7 +52,10 @@ fn main() {
 
     // work out size of files from each child directory. BTree cause i want ordered printing
     let mut dir_total_sizes = BTreeMap::<String, usize>::new();
+    let mut used_space = 0;
     for (mut dir, size) in dir_sizes {
+        used_space += size;
+
         while !dir.is_empty() {
             match dir_total_sizes.get_mut(&dir) {
                 Some(total_size) => *total_size += size,
@@ -69,14 +72,19 @@ fn main() {
         }
     }
 
-    println!("dirs with size <= 100000");
-    let mut total_sizes = 0;
+    const FS_SIZE: usize = 70000000;
+    const NEED_SPACE: usize = 30000000;
+    let used_space = used_space;
+    let space_avail = FS_SIZE - used_space;
+    let need_to_free = NEED_SPACE - space_avail;
+    println!(
+        "fs takes up {} of {}, need to free {} to hit {} avail bytes",
+        used_space, FS_SIZE, need_to_free, NEED_SPACE
+    );
+
     for (dir, size) in dir_total_sizes {
-        if size <= 100000 && size != 0 {
-            println!("{0: <7} {1}", size, &dir);
-            total_sizes += size;
+        if size > need_to_free {
+            println!("could delete {0:<7} {1}", size, dir);
         }
     }
-
-    println!("total sum: {}", total_sizes);
 }
