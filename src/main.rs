@@ -14,32 +14,29 @@ fn main() {
     // load size of files directly under each directory.
     for line in lines {
         let line = line.unwrap();
-        let mut vals = line.split(' ');
+        let vals: Vec<&str> = line.split(' ').collect();
 
-        match vals.next().unwrap() {
-            "$" => match vals.next().unwrap() {
-                "cd" => match vals.next().unwrap() {
-                    "/" => cwd.clear(),
-                    ".." => match cwd.rfind('/') {
-                        Some(split) => {
-                            // erase from the / onwards
-                            cwd.truncate(split);
-                        }
-                        None => cwd.clear(),
-                    },
-                    into_dir => {
-                        cwd.push('/');
-                        cwd.push_str(into_dir);
+        match vals.as_slice() {
+            ["$", "cd", "/"] => cwd.clear(),
+            ["$", "cd", ".."] => {
+                match cwd.rfind('/') {
+                    Some(split) => {
+                        // erase from the / onwards
+                        cwd.truncate(split);
                     }
-                },
-                "ls" => {
-                    // about to get listing for cwd, clear out stored size
-                    dir_sizes.insert(cwd.to_owned(), 0 as usize);
+                    None => cwd.clear(),
                 }
-                unknown => panic!("unknown line $ {}", unknown),
-            },
-            "dir" => (), // ignored.
-            filesize => {
+            }
+            ["$", "cd", into_dir] => {
+                cwd.push('/');
+                cwd.push_str(into_dir);
+            }
+            ["$", "ls"] => {
+                // about to get listing for cwd, clear out stored size
+                dir_sizes.insert(cwd.to_owned(), 0 as usize);
+            }
+            ["dir", _dir_name] => (), // ignored.
+            [filesize, _file_name] => {
                 // add to cwd's size.
                 let filesize: usize = filesize.parse().unwrap();
                 // filename ignored, don't need to track it since we clear dir size on seeing `ls`
@@ -47,6 +44,7 @@ fn main() {
                 let cur_size = dir_sizes.get_mut(&cwd).unwrap();
                 *cur_size += filesize;
             }
+            _ => panic!("unknown line $ {}", &line),
         }
     }
 
