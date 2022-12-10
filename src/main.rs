@@ -1,78 +1,70 @@
 use std::{
+    cmp::Ordering::*,
+    collections::HashSet,
     fs::File,
     io::{BufRead, BufReader},
 };
 
-const FIELD_SIZE: usize = 99;
-
-// in [row][column] order. shouldn't matter for this puzzles, anyway
-fn load_input() -> [[u8; FIELD_SIZE]; FIELD_SIZE] {
-    let mut res = [[0; FIELD_SIZE]; FIELD_SIZE];
-    let mut this_row = 0;
+fn main() {
+    let mut tail_visited = HashSet::new();
 
     let input = File::open("input.txt").unwrap();
     let lines = BufReader::new(input).lines();
 
+    let mut head = (0, 0);
+    let mut tail = head;
+
     for line in lines {
-        let row = &mut res[this_row];
+        let line = line.unwrap();
+        let mut parts = line.split(' ');
 
-        let mut this_char = 0;
-        for ch in line.unwrap().bytes() {
-            let v = ch - b'0';
-            row[this_char] = v;
+        let direction = parts.next().unwrap();
+        let steps: i32 = parts.next().unwrap().parse().unwrap();
+        assert!(steps > 0);
 
-            assert!(v < 10);
-            this_char += 1;
-        }
-
-        this_row += 1;
-    }
-
-    res
-}
-
-fn main() {
-    let input = load_input();
-
-    let mut highest_score = 0;
-
-    for y in 0..FIELD_SIZE {
-        for x in 0..FIELD_SIZE {
-            let score = scenic_score(&input, x, y);
-            if score > highest_score {
-                println!("most scenic at {} {} score {}", x, y, score);
-                highest_score = score;
-            }
+        for _ in 0..steps {
+            head = move_dir(head, direction);
+            tail = move_tail(tail, head);
+            tail_visited.insert(tail);
         }
     }
 
-    println!("best score: {}", highest_score);
+    println!("covered: {}", tail_visited.len());
 }
 
-fn scenic_score(input: &[[u8; FIELD_SIZE]; FIELD_SIZE], x: usize, y: usize) -> usize {
-    if x == 0 || y == 0 || x == FIELD_SIZE - 1 || y == FIELD_SIZE - 1 {
-        return 0;
+fn move_dir(head: (i32, i32), dir: &str) -> (i32, i32) {
+    match dir {
+        "L" => (head.0 - 1, head.1),
+        "R" => (head.0 + 1, head.1),
+        "U" => (head.0, head.1 + 1),
+        "D" => (head.0, head.1 - 1),
+        _ => panic!("unknown direction"),
+    }
+}
+
+fn move_tail(tail: (i32, i32), head: (i32, i32)) -> (i32, i32) {
+    // if touching, no op. touching is defined as being within '1' on both axis
+    let touching_x = tail.0.abs_diff(head.0) <= 1;
+    let touching_y = tail.1.abs_diff(head.1) <= 1;
+    if touching_x && touching_y {
+        return tail;
+    };
+
+    let dx = tail.0.cmp(&head.0);
+    let dy = tail.1.cmp(&head.1);
+
+    let mut new_tail = tail;
+    match dx {
+        Less => new_tail.0 += 1,
+        Equal => (),
+        Greater => new_tail.0 -= 1,
     }
 
-    let this_height = input[y][x];
+    match dy {
+        Less => new_tail.1 += 1,
+        Equal => (),
+        Greater => new_tail.1 -= 1,
+    }
 
-    // find the tree that blocks visibility in any direction.
-    let blk_l = (0..x)
-        .rev()
-        .find(|check_x| input[y][*check_x] >= this_height);
-    let blk_r = (x + 1..FIELD_SIZE).find(|check_x| input[y][*check_x] >= this_height);
-
-    let blk_u = (0..y)
-        .rev()
-        .find(|check_y| input[*check_y][x] >= this_height);
-    let blk_d = (y + 1..FIELD_SIZE).find(|check_y| input[*check_y][x] >= this_height);
-
-    // if there's no blocker, count to the edge of the map (the number of trees checked)
-    let score_left = x - blk_l.unwrap_or(0);
-    let score_right = blk_r.unwrap_or(FIELD_SIZE - 1) - x;
-
-    let score_up = y - blk_u.unwrap_or(0);
-    let score_down = blk_d.unwrap_or(FIELD_SIZE - 1) - y;
-
-    score_left * score_right * score_up * score_down
+    new_tail
 }
