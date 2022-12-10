@@ -34,32 +34,45 @@ fn load_input() -> [[u8; FIELD_SIZE]; FIELD_SIZE] {
 fn main() {
     let input = load_input();
 
-    let mut num_visible = 0;
+    let mut highest_score = 0;
 
     for y in 0..FIELD_SIZE {
         for x in 0..FIELD_SIZE {
-            if is_visible(&input, x, y) {
-                num_visible += 1;
+            let score = scenic_score(&input, x, y);
+            if score > highest_score {
+                println!("most scenic at {} {} score {}", x, y, score);
+                highest_score = score;
             }
         }
     }
 
-    println!("Trees visible: {}", num_visible);
+    println!("best score: {}", highest_score);
 }
 
-fn is_visible(input: &[[u8; FIELD_SIZE]; FIELD_SIZE], x: usize, y: usize) -> bool {
+fn scenic_score(input: &[[u8; FIELD_SIZE]; FIELD_SIZE], x: usize, y: usize) -> usize {
     if x == 0 || y == 0 || x == FIELD_SIZE - 1 || y == FIELD_SIZE - 1 {
-        return true;
+        return 0;
     }
 
     let this_height = input[y][x];
 
-    // check to left. if all trees to the left are lower, than visible to the left
-    let vis_left = (0..x).all(|check_x| input[y][check_x] < this_height);
-    let vis_right = (x + 1..FIELD_SIZE).all(|check_x| input[y][check_x] < this_height);
+    // find the tree that blocks visibility in any direction.
+    let blk_l = (0..x)
+        .rev()
+        .find(|check_x| input[y][*check_x] >= this_height);
+    let blk_r = (x + 1..FIELD_SIZE).find(|check_x| input[y][*check_x] >= this_height);
 
-    let vis_up = (0..y).all(|check_y| input[check_y][x] < this_height);
-    let vis_down = (y + 1..FIELD_SIZE).all(|check_y| input[check_y][x] < this_height);
+    let blk_u = (0..y)
+        .rev()
+        .find(|check_y| input[*check_y][x] >= this_height);
+    let blk_d = (y + 1..FIELD_SIZE).find(|check_y| input[*check_y][x] >= this_height);
 
-    vis_left || vis_right || vis_up || vis_down
+    // if there's no blocker, count to the edge of the map (the number of trees checked)
+    let score_left = x - blk_l.unwrap_or(0);
+    let score_right = blk_r.unwrap_or(FIELD_SIZE - 1) - x;
+
+    let score_up = y - blk_u.unwrap_or(0);
+    let score_down = blk_d.unwrap_or(FIELD_SIZE - 1) - y;
+
+    score_left * score_right * score_up * score_down
 }
