@@ -11,8 +11,8 @@ fn main() {
     let input = File::open("input.txt").unwrap();
     let lines = BufReader::new(input).lines();
 
-    let mut head = (0, 0);
-    let mut tail = head;
+    const ROPE_LEN: usize = 10;
+    let mut rope = [(0, 0); ROPE_LEN];
 
     for line in lines {
         let line = line.unwrap();
@@ -23,9 +23,16 @@ fn main() {
         assert!(steps > 0);
 
         for _ in 0..steps {
-            head = move_dir(head, direction);
-            tail = move_tail(tail, head);
-            tail_visited.insert(tail);
+            let head = &mut rope[0];
+            *head = move_dir(*head, direction);
+
+            for off in 0..ROPE_LEN - 1 {
+                let move_to = rope[off];
+                let tail = &mut rope[off + 1];
+                *tail = move_tail(*tail, move_to);
+            }
+
+            tail_visited.insert(rope[ROPE_LEN - 1]);
         }
     }
 
