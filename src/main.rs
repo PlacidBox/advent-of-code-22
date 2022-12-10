@@ -1,88 +1,65 @@
 use std::{
-    collections::{BTreeMap, HashMap},
     fs::File,
     io::{BufRead, BufReader},
 };
 
-fn main() {
+const FIELD_SIZE: usize = 99;
+
+// in [row][column] order. shouldn't matter for this puzzles, anyway
+fn load_input() -> [[u8; FIELD_SIZE]; FIELD_SIZE] {
+    let mut res = [[0; FIELD_SIZE]; FIELD_SIZE];
+    let mut this_row = 0;
+
     let input = File::open("input.txt").unwrap();
     let lines = BufReader::new(input).lines();
 
-    let mut cwd = "".to_owned();
-    let mut dir_sizes = HashMap::new();
-
-    // load size of files directly under each directory.
     for line in lines {
-        let line = line.unwrap();
-        let vals: Vec<&str> = line.split(' ').collect();
+        let row = &mut res[this_row];
 
-        match vals.as_slice() {
-            ["$", "cd", "/"] => cwd.clear(),
-            ["$", "cd", ".."] => {
-                match cwd.rfind('/') {
-                    Some(split) => {
-                        // erase from the / onwards
-                        cwd.truncate(split);
-                    }
-                    None => cwd.clear(),
-                }
-            }
-            ["$", "cd", into_dir] => {
-                cwd.push('/');
-                cwd.push_str(into_dir);
-            }
-            ["$", "ls"] => {
-                // about to get listing for cwd, clear out stored size
-                dir_sizes.insert(cwd.to_owned(), 0 as usize);
-            }
-            ["dir", _dir_name] => (), // ignored.
-            [filesize, _file_name] => {
-                // add to cwd's size.
-                let filesize: usize = filesize.parse().unwrap();
-                // filename ignored, don't need to track it since we clear dir size on seeing `ls`
+        let mut this_char = 0;
+        for ch in line.unwrap().bytes() {
+            let v = ch - b'0';
+            row[this_char] = v;
 
-                let cur_size = dir_sizes.get_mut(&cwd).unwrap();
-                *cur_size += filesize;
-            }
-            _ => panic!("unknown line $ {}", &line),
+            assert!(v < 10);
+            this_char += 1;
         }
+
+        this_row += 1;
     }
 
-    // work out size of files from each child directory. BTree cause i want ordered printing
-    let mut dir_total_sizes = BTreeMap::<String, usize>::new();
-    let mut used_space = 0;
-    for (mut dir, size) in dir_sizes {
-        used_space += size;
+    res
+}
 
-        while !dir.is_empty() {
-            match dir_total_sizes.get_mut(&dir) {
-                Some(total_size) => *total_size += size,
-                None => {
-                    dir_total_sizes.insert(dir.to_owned(), size);
-                }
-            }
+fn main() {
+    let input = load_input();
 
-            // knock off trailing dir, equiv to 'cd ..'
-            match dir.rfind('/') {
-                Some(split) => dir.truncate(split),
-                None => dir.clear(),
+    let mut num_visible = 0;
+
+    for y in 0..FIELD_SIZE {
+        for x in 0..FIELD_SIZE {
+            if is_visible(&input, x, y) {
+                num_visible += 1;
             }
         }
     }
 
-    const FS_SIZE: usize = 70000000;
-    const NEED_SPACE: usize = 30000000;
-    let used_space = used_space;
-    let space_avail = FS_SIZE - used_space;
-    let need_to_free = NEED_SPACE - space_avail;
-    println!(
-        "fs takes up {} of {}, need to free {} to hit {} avail bytes",
-        used_space, FS_SIZE, need_to_free, NEED_SPACE
-    );
+    println!("Trees visible: {}", num_visible);
+}
 
-    for (dir, size) in dir_total_sizes {
-        if size > need_to_free {
-            println!("could delete {0:<7} {1}", size, dir);
-        }
+fn is_visible(input: &[[u8; FIELD_SIZE]; FIELD_SIZE], x: usize, y: usize) -> bool {
+    if x == 0 || y == 0 || x == FIELD_SIZE - 1 || y == FIELD_SIZE - 1 {
+        return true;
     }
+
+    let this_height = input[y][x];
+
+    // check to left. if all trees to the left are lower, than visible to the left
+    let vis_left = (0..x).all(|check_x| input[y][check_x] < this_height);
+    let vis_right = (x + 1..FIELD_SIZE).all(|check_x| input[y][check_x] < this_height);
+
+    let vis_up = (0..y).all(|check_y| input[check_y][x] < this_height);
+    let vis_down = (y + 1..FIELD_SIZE).all(|check_y| input[check_y][x] < this_height);
+
+    vis_left || vis_right || vis_up || vis_down
 }
