@@ -1,4 +1,4 @@
-type Item = i64; // hit an overflow using i32, thanks rust.
+type Item = i64;
 
 struct Monkey {
     items: Vec<Item>,
@@ -9,7 +9,19 @@ struct Monkey {
     inspection_count: usize,
 }
 
-const ROUND_COUNT: i32 = 20;
+const ROUND_COUNT: i32 = 10000;
+
+// The values get big enough where we need to use a modulo field to track everything, and the
+// primes used are 17, 19, 3, 5, 13, 7, 11, and 2, multiplying out to `9699690`.
+//
+// Unfortunately there's a square in there too! I have 0 clue how this works in modulo fields,
+// so i'll square the size of the field and pray. Maybe it's not needed? I'm unsure.
+//
+// If there wern't addition ops, i'd just track the factors, but urrrghhh...
+// const FIELD_SIZE: i128 = 94083986096100;
+// But then it spits out the same values with the non-squared size. my math is not good enough to
+// know why.
+const FIELD_SIZE: i64 = 9699690;
 
 fn main() {
     let mut monkeys = [
@@ -79,7 +91,8 @@ fn main() {
         },
     ];
 
-    for _ in 0..ROUND_COUNT {
+    for i in 0..ROUND_COUNT {
+        println!("Round {}", i);
         round(&mut monkeys);
     }
 
@@ -90,6 +103,7 @@ fn main() {
 
 fn round(monkeys: &mut [Monkey; 8]) {
     for i in 0..monkeys.len() {
+        println!("Monkey {} has {} items", i, monkeys[i].items.len());
         while !monkeys[i].items.is_empty() {
             // there's no behavious change here if we pop from the front or the back, so do the
             // back to make it a bit simpler computationally.
@@ -97,8 +111,7 @@ fn round(monkeys: &mut [Monkey; 8]) {
             // monkey inspects item and worry level increases
             monkeys[i].inspection_count += 1;
             cur_item = (monkeys[i].worry_op)(cur_item);
-            // worry level is divided by 3
-            cur_item = cur_item / 3;
+            cur_item = cur_item % FIELD_SIZE;
             // monkey gets bored, throws.
             let passes_test = (cur_item % monkeys[i].test_divisor) == 0;
             let throws_to = if passes_test {
