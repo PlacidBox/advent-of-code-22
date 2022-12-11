@@ -4,20 +4,30 @@ use std::{
     io::{BufRead, BufReader},
 };
 
+const LIT: char = '█';
+const DARK: char = '░';
+const ROW_PITCH: i32 = 40;
+
 fn main() {
     let input = File::open("input.txt").unwrap();
     let lines = BufReader::new(input).lines();
 
     let mut clock = 0;
     let reg_x = Cell::new(1);
-    let mut signal_sum = 0;
 
     let mut tick = || {
+        let pos_x: i32 = clock % ROW_PITCH;
+        if pos_x == 0 {
+            println!("");
+        }
+
         clock += 1;
-        if [20, 60, 100, 140, 180, 220].contains(&clock) {
-            let sig_strength = clock * reg_x.get();
-            println!("{:>6} str {}", clock, sig_strength);
-            signal_sum += sig_strength;
+
+        let pixel_lit = pos_x.abs_diff(reg_x.get()) <= 1;
+        if pixel_lit {
+            print!("{}", LIT);
+        } else {
+            print!("{}", DARK);
         }
     };
 
@@ -35,6 +45,4 @@ fn main() {
             _ => panic!(),
         }
     }
-
-    println!("total: {}", signal_sum);
 }
