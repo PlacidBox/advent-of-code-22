@@ -1,77 +1,40 @@
 use std::{
-    cmp::Ordering::*,
-    collections::HashSet,
+    cell::Cell,
     fs::File,
     io::{BufRead, BufReader},
 };
 
 fn main() {
-    let mut tail_visited = HashSet::new();
-
     let input = File::open("input.txt").unwrap();
     let lines = BufReader::new(input).lines();
 
-    const ROPE_LEN: usize = 10;
-    let mut rope = [(0, 0); ROPE_LEN];
+    let mut clock = 0;
+    let reg_x = Cell::new(1);
+    let mut signal_sum = 0;
+
+    let mut tick = || {
+        clock += 1;
+        if [20, 60, 100, 140, 180, 220].contains(&clock) {
+            let sig_strength = clock * reg_x.get();
+            println!("{:>6} str {}", clock, sig_strength);
+            signal_sum += sig_strength;
+        }
+    };
 
     for line in lines {
         let line = line.unwrap();
-        let mut parts = line.split(' ');
+        let parts: Vec<&str> = line.split(' ').collect();
 
-        let direction = parts.next().unwrap();
-        let steps: i32 = parts.next().unwrap().parse().unwrap();
-        assert!(steps > 0);
-
-        for _ in 0..steps {
-            let head = &mut rope[0];
-            *head = move_dir(*head, direction);
-
-            for off in 0..ROPE_LEN - 1 {
-                let move_to = rope[off];
-                let tail = &mut rope[off + 1];
-                *tail = move_tail(*tail, move_to);
+        match parts.as_slice() {
+            ["noop"] => tick(),
+            ["addx", amount] => {
+                tick();
+                tick();
+                reg_x.set(reg_x.get() + amount.parse::<i32>().unwrap());
             }
-
-            tail_visited.insert(rope[ROPE_LEN - 1]);
+            _ => panic!(),
         }
     }
 
-    println!("covered: {}", tail_visited.len());
-}
-
-fn move_dir(head: (i32, i32), dir: &str) -> (i32, i32) {
-    match dir {
-        "L" => (head.0 - 1, head.1),
-        "R" => (head.0 + 1, head.1),
-        "U" => (head.0, head.1 + 1),
-        "D" => (head.0, head.1 - 1),
-        _ => panic!("unknown direction"),
-    }
-}
-
-fn move_tail(tail: (i32, i32), head: (i32, i32)) -> (i32, i32) {
-    // if touching, no op. touching is defined as being within '1' on both axis
-    let touching_x = tail.0.abs_diff(head.0) <= 1;
-    let touching_y = tail.1.abs_diff(head.1) <= 1;
-    if touching_x && touching_y {
-        return tail;
-    };
-
-    let dx = tail.0.cmp(&head.0);
-    let dy = tail.1.cmp(&head.1);
-
-    let mut new_tail = tail;
-    match dx {
-        Less => new_tail.0 += 1,
-        Equal => (),
-        Greater => new_tail.0 -= 1,
-    }
-
-    match dy {
-        Less => new_tail.1 += 1,
-        Equal => (),
-        Greater => new_tail.1 -= 1,
-    }
-
-    new_tail
+    println!("total: {}", signal_sum);
 }
