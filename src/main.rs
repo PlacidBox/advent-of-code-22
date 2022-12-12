@@ -9,7 +9,6 @@ const FIELD_HEIGHT: usize = 41;
 struct Field {
     // everything in row major
     heights: [[u8; FIELD_WIDTH]; FIELD_HEIGHT],
-    start: (usize, usize),
     end: (usize, usize),
 }
 
@@ -19,7 +18,6 @@ impl Field {
         let lines = BufReader::new(input).lines();
 
         let mut heights = [[0; FIELD_WIDTH]; FIELD_HEIGHT];
-        let mut start = (0, 0);
         let mut end = (0, 0);
 
         for (y, line) in lines.enumerate() {
@@ -29,10 +27,7 @@ impl Field {
 
             for (x, height) in line.iter().enumerate() {
                 let height = match *height {
-                    b'S' => {
-                        start = (y, x);
-                        b'a'
-                    }
+                    b'S' => b'a',
                     b'E' => {
                         end = (y, x);
                         b'z'
@@ -44,11 +39,7 @@ impl Field {
             }
         }
 
-        Self {
-            heights,
-            start,
-            end,
-        }
+        Self { heights, end }
     }
 }
 
@@ -58,9 +49,17 @@ fn main() {
     // track distance from start. everything begins at unknown/255, and shrinks as we process
     // points.
     let mut distances = [[u16::MAX; FIELD_WIDTH]; FIELD_HEIGHT];
-    distances[field.start.0][field.start.1] = 0;
+    let mut to_process = vec![];
 
-    let mut to_process = vec![field.start];
+    for y in 0..FIELD_HEIGHT {
+        for x in 0..FIELD_WIDTH {
+            if field.heights[y][x] == b'a' {
+                distances[y][x] = 0;
+                to_process.push((y, x));
+            }
+        }
+    }
+
     while let Some(point) = to_process.pop() {
         // check adjacent tiles if they're the same height, or higher. if they're more than 1
         // further away from the current point, set them to current distance+1, and queue them to
