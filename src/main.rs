@@ -1,128 +1,149 @@
+use serde_json::Value;
 use std::{
+    cmp::Ord,
+    cmp::Ordering,
     fs::File,
-    io::{BufRead, BufReader},
+    io::{BufRead, BufReader, Lines},
 };
 
-const FIELD_WIDTH: usize = 81;
-const FIELD_HEIGHT: usize = 41;
-
-struct Field {
-    // everything in row major
-    heights: [[u8; FIELD_WIDTH]; FIELD_HEIGHT],
-    end: (usize, usize),
-}
-
-impl Field {
-    fn load() -> Self {
-        let input = File::open("input.txt").unwrap();
-        let lines = BufReader::new(input).lines();
-
-        let mut heights = [[0; FIELD_WIDTH]; FIELD_HEIGHT];
-        let mut end = (0, 0);
-
-        for (y, line) in lines.enumerate() {
-            let line = line.unwrap();
-            let line = line.as_bytes();
-            assert!(line.len() == FIELD_WIDTH);
-
-            for (x, height) in line.iter().enumerate() {
-                let height = match *height {
-                    b'S' => b'a',
-                    b'E' => {
-                        end = (y, x);
-                        b'z'
-                    }
-                    other => other,
-                };
-
-                heights[y][x] = height;
-            }
-        }
-
-        Self { heights, end }
-    }
-}
-
 fn main() {
-    let field = Field::load();
+    let input = File::open("input.txt").unwrap();
+    let mut lines = BufReader::new(input).lines();
 
-    // track distance from start. everything begins at unknown/255, and shrinks as we process
-    // points.
-    let mut distances = [[u16::MAX; FIELD_WIDTH]; FIELD_HEIGHT];
-    let mut to_process = vec![];
+    let mut pair_number = 1; // packet numbering starts at 1
+    let mut score = 0;
 
-    for y in 0..FIELD_HEIGHT {
-        for x in 0..FIELD_WIDTH {
-            if field.heights[y][x] == b'a' {
-                distances[y][x] = 0;
-                to_process.push((y, x));
+    while let Some((l, r)) = read_input(&mut lines) {
+        println!("== Pair {} ==", pair_number);
+        match value_cmp(&l, &r) {
+            Ordering::Less => {
+                println!(
+                    "Left side is smaller. Adding {} to score {}, for {}\n",
+                    pair_number,
+                    score,
+                    score + pair_number
+                );
+                score += pair_number;
             }
+            Ordering::Equal => panic!(),
+            Ordering::Greater => println!("Right side is smaller\n"),
         }
+
+        pair_number += 1;
     }
 
-    while let Some(point) = to_process.pop() {
-        // check adjacent tiles if they're the same height, or higher. if they're more than 1
-        // further away from the current point, set them to current distance+1, and queue them to
-        // have their neighbours updated. this is a basic flood fill, i suppose.
-        let current_dist = distances[point.0][point.1];
-        let current_height = field.heights[point.0][point.1];
+    println!("Final score: {}", score);
+}
 
-        if point.0 != 0 {
-            let tgt = (point.0 - 1, point.1);
-            let tgt_height = field.heights[tgt.0][tgt.1];
-            let tgt_dist = distances[tgt.0][tgt.1];
+fn read_input(input: &mut Lines<BufReader<File>>) -> Option<(Value, Value)> {
+    let l_in = input.next()?.unwrap();
+    let r_in = input.next()?.unwrap();
+    let ignored: String = input.next()?.unwrap();
 
-            let height_ok = tgt_height <= current_height + 1;
-            if height_ok && tgt_dist > current_dist + 1 {
-                distances[tgt.0][tgt.1] = current_dist + 1;
-                to_process.push(tgt);
-            }
+    let l: Value = serde_json::from_str(&l_in).unwrap();
+    let r: Value = serde_json::from_str(&r_in).unwrap();
+    assert!(ignored.len() == 0);
+
+    Some((l, r))
+}
+
+fn value_cmp(l: &Value, r: &Value) -> Ordering {
+    println!("Compare\n    {}\n  vs\n    {}\n", l, r);
+    match (l, r) {
+        (Value::Array(l), Value::Array(r)) => array_cmp(l, r),
+        (Value::Number(l), Value::Number(r)) => {
+            Ord::cmp(&l.as_i64().unwrap(), &r.as_i64().unwrap())
         }
+        (Value::Array(l), Value::Number(r)) => array_num_cmp(l, r),
+        (Value::Number(l), Value::Array(r)) => num_array_cmp(l, r),
+        (l, r) => panic!("unexpeceted types for l = {} r = {}", l, r),
+    }
+}
 
-        if point.0 != FIELD_HEIGHT - 1 {
-            let tgt = (point.0 + 1, point.1);
-            let tgt_height = field.heights[tgt.0][tgt.1];
-            let tgt_dist = distances[tgt.0][tgt.1];
+fn num_array_cmp(l: &serde_json::Number, r: &[Value]) -> Ordering {
+    let l_list = [Value::Number(l.clone())];
+    array_cmp(&l_list, r)
+}
 
-            let height_ok = tgt_height <= current_height + 1;
-            if height_ok && tgt_dist > current_dist + 1 {
-                distances[tgt.0][tgt.1] = current_dist + 1;
-                to_process.push(tgt);
-            }
-        }
+fn array_num_cmp(l: &[Value], r: &serde_json::Number) -> Ordering {
+    let r_list = [Value::Number(r.clone())];
+    array_cmp(&l, &r_list)
+}
 
-        if point.1 != 0 {
-            let tgt = (point.0, point.1 - 1);
-            let tgt_height = field.heights[tgt.0][tgt.1];
-            let tgt_dist = distances[tgt.0][tgt.1];
+fn array_cmp(l: &[Value], r: &[Value]) -> Ordering {
+    let mut l = l.iter();
+    let mut r = r.iter();
 
-            let height_ok = tgt_height <= current_height + 1;
-            if height_ok && tgt_dist > current_dist + 1 {
-                distances[tgt.0][tgt.1] = current_dist + 1;
-                to_process.push(tgt);
-            }
-        }
+    loop {
+        let this_res = match (l.next(), r.next()) {
+            (None, None) => return Ordering::Equal,
+            (None, Some(_)) => return Ordering::Less,
+            (Some(_), None) => return Ordering::Greater,
+            (Some(l_item), Some(r_item)) => value_cmp(l_item, r_item),
+        };
 
-        if point.1 != FIELD_WIDTH - 1 {
-            let tgt = (point.0, point.1 + 1);
-            let tgt_height = field.heights[tgt.0][tgt.1];
-            let tgt_dist = distances[tgt.0][tgt.1];
-
-            let height_ok = tgt_height <= current_height + 1;
-            if height_ok && tgt_dist > current_dist + 1 {
-                distances[tgt.0][tgt.1] = current_dist + 1;
-                to_process.push(tgt);
-            }
+        match this_res {
+            Ordering::Equal => (), // next iter
+            other => return other,
         }
     }
+}
 
-    for y in 0..FIELD_HEIGHT {
-        for x in 0..FIELD_WIDTH {
-            print!("{0}{1:>3}", field.heights[y][x] as char, distances[y][x]);
-        }
+#[cfg(test)]
+mod tests {
+    use std::cmp::Ordering;
 
-        println!();
+    fn str_cmp(l: &str, r: &str) -> Ordering {
+        let l_item: serde_json::Value = serde_json::from_str(l).unwrap();
+        let r_item: serde_json::Value = serde_json::from_str(r).unwrap();
+        super::value_cmp(&l_item, &r_item)
     }
 
-    println!("{}", distances[field.end.0][field.end.1]);
+    #[test]
+    fn example_one() {
+        let result = str_cmp("[1,1,3,1,1]", "[1,1,5,1,1]");
+        assert_eq!(result, Ordering::Less);
+    }
+
+    #[test]
+    fn example_two() {
+        let result = str_cmp("[[1],[2,3,4]]", "[[1],4]");
+        assert_eq!(result, Ordering::Less);
+    }
+
+    #[test]
+    fn example_three() {
+        let result = str_cmp("[9]", "[[8,7,6]]");
+        assert_eq!(result, Ordering::Greater);
+    }
+
+    #[test]
+    fn example_four() {
+        let result = str_cmp("[[4,4],4,4]", "[[4,4],4,4,4]");
+        assert_eq!(result, Ordering::Less);
+    }
+
+    #[test]
+    fn example_five() {
+        let result = str_cmp("[7, 7, 7, 7]", "[7, 7, 7]");
+        assert_eq!(result, Ordering::Greater);
+    }
+
+    #[test]
+    fn example_six() {
+        let result = str_cmp("[]", "[3]");
+        assert_eq!(result, Ordering::Less);
+    }
+
+    #[test]
+    fn example_seven() {
+        let result = str_cmp("[[[]]]", "[[]]");
+        assert_eq!(result, Ordering::Greater);
+    }
+
+    #[test]
+    fn example_eight() {
+        let result = str_cmp("[1,[2,[3,[4,[5,6,7]]]],8,9]", "[1,[2,[3,[4,[5,6,0]]]],8,9]");
+        assert_eq!(result, Ordering::Greater);
+    }
 }
