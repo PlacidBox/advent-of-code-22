@@ -1,141 +1,100 @@
-use serde_json::Value;
 use std::{
-    cmp::Ord,
-    cmp::Ordering,
+    collections::HashSet,
     fs::File,
     io::{BufRead, BufReader},
 };
 
-fn main() {
+const MAX_Y: i32 = 200; // from a quick scan of the input text file
+const SPAWN: (i32, i32) = (500, 0);
+
+// set of all positions that are filled. x, y. icreasing y is 'down'
+fn load() -> HashSet<(i32, i32)> {
+    let mut res = HashSet::new();
+
     let input = File::open("input.txt").unwrap();
     let lines = BufReader::new(input).lines();
 
-    let mut packets = vec![];
-
     for line in lines {
         let line = line.unwrap();
-        if !line.is_empty() {
-            let val: Value = serde_json::from_str(&line).unwrap();
-            packets.push(val);
+        let mut pen_points = line.split(" -> ").map(parse_point);
+
+        let mut start_point = pen_points.next().unwrap();
+        for end_point in pen_points {
+            plot_line(start_point, end_point, &mut res);
+            start_point = end_point;
         }
     }
 
-    // divider packets
-    let decoder_0: Value = serde_json::from_str("[[2]]").unwrap();
-    let decoder_1: Value = serde_json::from_str("[[6]]").unwrap();
+    res
+}
 
-    packets.push(decoder_0.clone());
-    packets.push(decoder_1.clone());
+fn parse_point(input: &str) -> (i32, i32) {
+    let mut digits = input.split(',');
+    let x = digits.next().unwrap();
+    let y = digits.next().unwrap();
+    assert!(digits.next() == None);
 
-    packets.sort_by(|l, r| value_cmp(l, r));
+    (x.parse().unwrap(), y.parse().unwrap())
+}
 
-    for (index, packet) in packets.iter().enumerate() {
-        if value_cmp(packet, &decoder_0) == Ordering::Equal {
-            println!("[[2]] is at index {}", index + 1);
+fn plot_line(start_point: (i32, i32), end_point: (i32, i32), res: &mut HashSet<(i32, i32)>) {
+    let dx = if start_point.0 < end_point.0 {
+        1
+    } else if start_point.0 > end_point.0 {
+        -1
+    } else {
+        0
+    };
+
+    let dy = if start_point.1 < end_point.1 {
+        1
+    } else if start_point.1 > end_point.1 {
+        -1
+    } else {
+        0
+    };
+
+    let mut current = start_point;
+    while current != end_point {
+        res.insert(current);
+        current.0 += dx;
+        current.1 += dy;
+    }
+
+    res.insert(end_point);
+}
+
+fn main() {
+    let mut field = load();
+
+    let mut settled_sand = 0;
+    let mut pos = SPAWN;
+
+    while pos.1 < MAX_Y {
+        let below_l = field.contains(&(pos.0 - 1, pos.1 + 1));
+        let below_m = field.contains(&(pos.0, pos.1 + 1));
+        let below_r = field.contains(&(pos.0 + 1, pos.1 + 1));
+
+        match (below_l, below_m, below_r) {
+            (true, true, true) => {
+                // comes to standstill, sand solidifies to block future sand
+                settled_sand += 1;
+                field.insert(pos);
+                pos = SPAWN;
+            }
+            (_, false, _) => pos.1 += 1, // falls directly downwards
+            (false, true, _) => {
+                // prefers to move to the left, if below is blocked
+                pos.0 -= 1;
+                pos.1 += 1;
+            }
+            (true, true, false) => {
+                // otherwise falls to the right
+                pos.0 += 1;
+                pos.1 += 1;
+            }
         }
-
-        if value_cmp(packet, &decoder_1) == Ordering::Equal {
-            println!("[[6]] is at index {}", index + 1);
-        }
-    }
-}
-
-fn value_cmp(l: &Value, r: &Value) -> Ordering {
-    match (l, r) {
-        (Value::Array(l), Value::Array(r)) => array_cmp(l, r),
-        (Value::Number(l), Value::Number(r)) => {
-            Ord::cmp(&l.as_i64().unwrap(), &r.as_i64().unwrap())
-        }
-        (Value::Array(l), Value::Number(r)) => array_num_cmp(l, r),
-        (Value::Number(l), Value::Array(r)) => num_array_cmp(l, r),
-        (l, r) => panic!("unexpeceted types for l = {} r = {}", l, r),
-    }
-}
-
-fn num_array_cmp(l: &serde_json::Number, r: &[Value]) -> Ordering {
-    let l_list = [Value::Number(l.clone())];
-    array_cmp(&l_list, r)
-}
-
-fn array_num_cmp(l: &[Value], r: &serde_json::Number) -> Ordering {
-    let r_list = [Value::Number(r.clone())];
-    array_cmp(&l, &r_list)
-}
-
-fn array_cmp(l: &[Value], r: &[Value]) -> Ordering {
-    let mut l = l.iter();
-    let mut r = r.iter();
-
-    loop {
-        let this_res = match (l.next(), r.next()) {
-            (None, None) => return Ordering::Equal,
-            (None, Some(_)) => return Ordering::Less,
-            (Some(_), None) => return Ordering::Greater,
-            (Some(l_item), Some(r_item)) => value_cmp(l_item, r_item),
-        };
-
-        match this_res {
-            Ordering::Equal => (), // next iter
-            other => return other,
-        }
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use std::cmp::Ordering;
-
-    fn str_cmp(l: &str, r: &str) -> Ordering {
-        let l_item: serde_json::Value = serde_json::from_str(l).unwrap();
-        let r_item: serde_json::Value = serde_json::from_str(r).unwrap();
-        super::value_cmp(&l_item, &r_item)
     }
 
-    #[test]
-    fn example_one() {
-        let result = str_cmp("[1,1,3,1,1]", "[1,1,5,1,1]");
-        assert_eq!(result, Ordering::Less);
-    }
-
-    #[test]
-    fn example_two() {
-        let result = str_cmp("[[1],[2,3,4]]", "[[1],4]");
-        assert_eq!(result, Ordering::Less);
-    }
-
-    #[test]
-    fn example_three() {
-        let result = str_cmp("[9]", "[[8,7,6]]");
-        assert_eq!(result, Ordering::Greater);
-    }
-
-    #[test]
-    fn example_four() {
-        let result = str_cmp("[[4,4],4,4]", "[[4,4],4,4,4]");
-        assert_eq!(result, Ordering::Less);
-    }
-
-    #[test]
-    fn example_five() {
-        let result = str_cmp("[7, 7, 7, 7]", "[7, 7, 7]");
-        assert_eq!(result, Ordering::Greater);
-    }
-
-    #[test]
-    fn example_six() {
-        let result = str_cmp("[]", "[3]");
-        assert_eq!(result, Ordering::Less);
-    }
-
-    #[test]
-    fn example_seven() {
-        let result = str_cmp("[[[]]]", "[[]]");
-        assert_eq!(result, Ordering::Greater);
-    }
-
-    #[test]
-    fn example_eight() {
-        let result = str_cmp("[1,[2,[3,[4,[5,6,7]]]],8,9]", "[1,[2,[3,[4,[5,6,0]]]],8,9]");
-        assert_eq!(result, Ordering::Greater);
-    }
+    println!("{}", settled_sand);
 }
