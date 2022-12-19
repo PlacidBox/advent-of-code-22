@@ -4,12 +4,12 @@ use std::{
     io::{BufRead, BufReader},
 };
 
-const MAX_Y: i32 = 200; // from a quick scan of the input text file
 const SPAWN: (i32, i32) = (500, 0);
 
 // set of all positions that are filled. x, y. icreasing y is 'down'
-fn load() -> HashSet<(i32, i32)> {
+fn load() -> (HashSet<(i32, i32)>, i32) {
     let mut res = HashSet::new();
+    let mut max_y = 0;
 
     let input = File::open("input.txt").unwrap();
     let lines = BufReader::new(input).lines();
@@ -19,13 +19,16 @@ fn load() -> HashSet<(i32, i32)> {
         let mut pen_points = line.split(" -> ").map(parse_point);
 
         let mut start_point = pen_points.next().unwrap();
+        max_y = max_y.max(start_point.1);
+
         for end_point in pen_points {
+            max_y = max_y.max(end_point.1);
             plot_line(start_point, end_point, &mut res);
             start_point = end_point;
         }
     }
 
-    res
+    (res, max_y)
 }
 
 fn parse_point(input: &str) -> (i32, i32) {
@@ -65,12 +68,12 @@ fn plot_line(start_point: (i32, i32), end_point: (i32, i32), res: &mut HashSet<(
 }
 
 fn main() {
-    let mut field = load();
+    let (mut field, max_y) = load();
 
     let mut settled_sand = 0;
     let mut pos = SPAWN;
 
-    while pos.1 < MAX_Y {
+    while !field.contains(&SPAWN) {
         let below_l = field.contains(&(pos.0 - 1, pos.1 + 1));
         let below_m = field.contains(&(pos.0, pos.1 + 1));
         let below_r = field.contains(&(pos.0 + 1, pos.1 + 1));
@@ -93,6 +96,13 @@ fn main() {
                 pos.0 += 1;
                 pos.1 += 1;
             }
+        }
+
+        if pos.1 == max_y + 1 {
+            // resting above the infinite ground plane
+            settled_sand += 1;
+            field.insert(pos);
+            pos = SPAWN;
         }
     }
 
