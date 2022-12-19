@@ -29,8 +29,8 @@ const INPUT: &[((i32, i32), (i32, i32))] = &[
     ((2594265, 638715), (2333853, 2000000)),
 ];
 
-const TARGET_ROW: i32 = 2000000;
-const BEACONS_IN_TARGET_ROW: i32 = 1;
+const SEARCH_LOW: i32 = 0;
+const SEARCH_HIGH: i32 = 4000000;
 
 // Forms a half-open range. so when is_entry is _true_, the cell (x_coord, ROW) is _not_ a beacon,
 // if it's _false_, it could be a beacon.
@@ -43,6 +43,12 @@ struct SensorEdge {
 }
 
 fn main() {
+    for row in SEARCH_LOW..SEARCH_HIGH {
+        do_row(row);
+    }
+}
+
+fn do_row(row: i32) {
     // convert to list of 'distances' from each sensor that can't be beacons (or is a beacon). this
     // gives us the entry and exit cell for each sensor along the row. track entering an area as +1,
     // exiting as -1, any time we're positive there can't be a non-detected-beacon.
@@ -67,8 +73,8 @@ fn main() {
         // ##S##
         // .###. <-- target row
         // ..#..
-        // distance taken by vertical: 1, so 1 remaining either side at (s_x, TARGET_ROW)
-        let range_to_tgt_row = s_y.abs_diff(TARGET_ROW);
+        // distance taken by vertical: 1, so 1 remaining either side at (s_x, row)
+        let range_to_tgt_row = s_y.abs_diff(row);
 
         if range_to_tgt_row <= distance {
             let range = distance - range_to_tgt_row;
@@ -82,16 +88,6 @@ fn main() {
                 is_entry: false,
             };
 
-            // 4985188
-            // too low
-
-            // 4985191
-
-            println!(
-                "Sensor ({},{}), B ({},{}) covers target row from {} to {}",
-                s_x, s_y, b_x, b_y, left_edge.x_coord, right_edge.x_coord
-            );
-
             edges.push(left_edge);
             edges.push(right_edge);
         }
@@ -99,15 +95,13 @@ fn main() {
 
     edges.sort_by_key(|edge| edge.x_coord);
 
-    let mut covered_cells = 0;
-    let mut entered_at = None;
     let mut coverage_count = 0;
 
     for edge in &edges {
         if edge.is_entry && coverage_count == 0 {
-            assert_eq!(entered_at, None);
-            entered_at = Some(edge.x_coord);
-            println!("Coverage starts at x={}", edge.x_coord);
+            if edge.x_coord > SEARCH_LOW {
+                println!("Coverage starts at x={} in row {}", edge.x_coord, row);
+            }
         }
 
         if !edge.is_entry && coverage_count == 1 {
@@ -117,10 +111,9 @@ fn main() {
             //     ^     ^
             // entry=4    exit=10
             // distance covered = 6
-            let distance_covered = edge.x_coord - entered_at.unwrap();
-            covered_cells += distance_covered;
-            entered_at = None;
-            println!("Coverage starts at x={}", edge.x_coord);
+            if edge.x_coord < SEARCH_HIGH {
+                println!("Coverage ends at x={} in row {}", edge.x_coord, row);
+            }
         }
 
         match edge.is_entry {
@@ -129,8 +122,5 @@ fn main() {
         }
     }
 
-    assert_eq!(entered_at, None);
     assert_eq!(coverage_count, 0);
-
-    println!("answer: {}", covered_cells - BEACONS_IN_TARGET_ROW);
 }
