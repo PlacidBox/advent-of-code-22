@@ -86,9 +86,11 @@ fn main() {
         }
     }
 
-    println!(
+    let solution_str: [&'static str; VALVE_COUNT] =
+        highest_scoring_perm.map(|x| puzzle.valve_names[x as usize]);
+    print!(
         "Total flow is {} for solution {:?}",
-        highest_score, highest_scoring_perm
+        highest_score, solution_str
     );
 }
 
