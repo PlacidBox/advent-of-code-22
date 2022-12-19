@@ -37,12 +37,11 @@ fn main() {
 
 fn read_input(input: &mut Lines<BufReader<File>>) -> Option<(Value, Value)> {
     let l_in = input.next()?.unwrap();
-    let r_in = input.next()?.unwrap();
-    let ignored: String = input.next()?.unwrap();
+    let r_in = input.next().unwrap().unwrap();
+    let _ignored = input.next(); // no last line at EOF, don't check the option
 
     let l: Value = serde_json::from_str(&l_in).unwrap();
     let r: Value = serde_json::from_str(&r_in).unwrap();
-    assert!(ignored.len() == 0);
 
     Some((l, r))
 }
