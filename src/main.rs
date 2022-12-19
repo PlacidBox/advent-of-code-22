@@ -3,51 +3,44 @@ use std::{
     cmp::Ord,
     cmp::Ordering,
     fs::File,
-    io::{BufRead, BufReader, Lines},
+    io::{BufRead, BufReader},
 };
 
 fn main() {
     let input = File::open("input.txt").unwrap();
-    let mut lines = BufReader::new(input).lines();
+    let lines = BufReader::new(input).lines();
 
-    let mut pair_number = 1; // packet numbering starts at 1
-    let mut score = 0;
+    let mut packets = vec![];
 
-    while let Some((l, r)) = read_input(&mut lines) {
-        println!("== Pair {} ==", pair_number);
-        match value_cmp(&l, &r) {
-            Ordering::Less => {
-                println!(
-                    "Left side is smaller. Adding {} to score {}, for {}\n",
-                    pair_number,
-                    score,
-                    score + pair_number
-                );
-                score += pair_number;
-            }
-            Ordering::Equal => panic!(),
-            Ordering::Greater => println!("Right side is smaller\n"),
+    for line in lines {
+        let line = line.unwrap();
+        if !line.is_empty() {
+            let val: Value = serde_json::from_str(&line).unwrap();
+            packets.push(val);
         }
-
-        pair_number += 1;
     }
 
-    println!("Final score: {}", score);
-}
+    // divider packets
+    let decoder_0: Value = serde_json::from_str("[[2]]").unwrap();
+    let decoder_1: Value = serde_json::from_str("[[6]]").unwrap();
 
-fn read_input(input: &mut Lines<BufReader<File>>) -> Option<(Value, Value)> {
-    let l_in = input.next()?.unwrap();
-    let r_in = input.next().unwrap().unwrap();
-    let _ignored = input.next(); // no last line at EOF, don't check the option
+    packets.push(decoder_0.clone());
+    packets.push(decoder_1.clone());
 
-    let l: Value = serde_json::from_str(&l_in).unwrap();
-    let r: Value = serde_json::from_str(&r_in).unwrap();
+    packets.sort_by(|l, r| value_cmp(l, r));
 
-    Some((l, r))
+    for (index, packet) in packets.iter().enumerate() {
+        if value_cmp(packet, &decoder_0) == Ordering::Equal {
+            println!("[[2]] is at index {}", index + 1);
+        }
+
+        if value_cmp(packet, &decoder_1) == Ordering::Equal {
+            println!("[[6]] is at index {}", index + 1);
+        }
+    }
 }
 
 fn value_cmp(l: &Value, r: &Value) -> Ordering {
-    println!("Compare\n    {}\n  vs\n    {}\n", l, r);
     match (l, r) {
         (Value::Array(l), Value::Array(r)) => array_cmp(l, r),
         (Value::Number(l), Value::Number(r)) => {
