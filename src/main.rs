@@ -1,5 +1,8 @@
+mod util;
+
 use regex::Regex;
 use std::collections::BTreeMap;
+use util::next_permutation;
 
 const INPUT: &str = include_str!("../input.txt");
 const VALVE_COUNT: usize = 15;
@@ -89,7 +92,9 @@ impl ProcessedInput {
         }
     }
 
-    fn total_flow_for_sequence(&self, sequence: &[u8; VALVE_COUNT]) -> i32 {
+    // returns the total flow for visiting the sequence, and the number of entries in `sequence`
+    // used before time runs out. this includes the valve that we were walking to when time ran out.
+    fn total_flow_for_sequence(&self, sequence: &[u8; VALVE_COUNT]) -> (i32, usize) {
         let mut flow = 0;
         let mut time_remaining = TIME_LIMIT;
 
@@ -105,7 +110,8 @@ impl ProcessedInput {
             time_remaining -= self.movement_costs[prev_valve as usize][this_valve as usize] as i32;
             time_remaining -= 1;
             if time_remaining <= 0 {
-                break;
+                // if i = 2, we've used 3 items total, for a count of `i+1`
+                return (flow, i + 1);
             }
 
             flow += time_remaining * self.flow_rates[this_valve as usize];
@@ -113,7 +119,7 @@ impl ProcessedInput {
             prev_valve = this_valve;
         }
 
-        flow
+        (flow, VALVE_COUNT)
     }
 }
 
@@ -179,7 +185,7 @@ fn main() {
         }
         permutations_checked += 1;
 
-        let score = puzzle.total_flow_for_sequence(&current_perm);
+        let (score, valves_used) = puzzle.total_flow_for_sequence(&current_perm);
 
         if score > highest_score {
             highest_score = score;
@@ -193,6 +199,12 @@ fn main() {
             );
         }
 
+        // If only 5 entries in `current_perm` were used, we can skip to the next permutation that
+        // modifies the front 5. next_permutation is lexographical order, so to get the next
+        // permutation we reverse-sort the un-used values.
+
+        current_perm[valves_used..].sort_by(|l, r| r.cmp(l));
+
         if !next_permutation(&mut current_perm) {
             break;
         }
@@ -204,92 +216,4 @@ fn main() {
         "Total flow is {} for solution {:?}",
         highest_score, solution_str
     );
-}
-
-// I genuinely can't find a crate that implements this. Maybe I should make one.
-fn next_permutation<T: Ord>(input: &mut [T]) -> bool {
-    // From wikipedia:
-    //     The following algorithm generates the next permutation lexicographically after a
-    // given permutation. It changes the given permutation in-place.
-    //     Find the largest index k such that a[k] < a[k + 1]. If no such index exists, the
-    //      permutation is the last permutation.
-    //     Find the largest index l greater than k such that a[k] < a[l].
-    //     Swap the value of a[k] with that of a[l].
-    //     Reverse the sequence from a[k + 1] up to and including the final element a[n].
-
-    // Find the largest index k such that a[k] < a[k + 1]. If no such index exists, the permutation
-    // is the last permutation.
-    let mut k = None;
-    for i in 0..input.len() - 1 {
-        if input[i] < input[i + 1] {
-            k = Some(i);
-        }
-    }
-
-    let Some(k) = k else {
-        // Last permutation was reached, the input is in reverse order lexographically so reverse it
-        // to get it back to sorted, and return `false` to indicate that we're done.
-        input.reverse();
-        return false;
-    };
-
-    // Find the largest index l greater than k such that a[k] < a[l].
-    let mut l = None;
-    for i in k + 1..input.len() {
-        if input[k] < input[i] {
-            l = Some(i);
-        }
-    }
-    // this should be guaranteed to be non-None, since we already checked when deciding k.
-    // It's something to clean up when publishing as a crate, though.
-    let l = l.unwrap();
-
-    // Swap the value of a[k] with that of a[l].
-    input.swap(k, l);
-
-    // Reverse the sequence from a[k + 1] up to and including the final element a[n].
-    input[k + 1..].reverse();
-
-    true
-}
-
-#[cfg(test)]
-mod tests {
-    use super::next_permutation;
-    #[test]
-    fn test_next_perm() {
-        let mut list = [0, 1, 2];
-
-        assert_eq!(next_permutation(&mut list), true);
-        assert_eq!(list, [0, 2, 1]);
-
-        assert_eq!(next_permutation(&mut list), true);
-        assert_eq!(list, [1, 0, 2]);
-
-        assert_eq!(next_permutation(&mut list), true);
-        assert_eq!(list, [1, 2, 0]);
-
-        assert_eq!(next_permutation(&mut list), true);
-        assert_eq!(list, [2, 0, 1]);
-
-        assert_eq!(next_permutation(&mut list), true);
-        assert_eq!(list, [2, 1, 0]);
-
-        assert_eq!(next_permutation(&mut list), false);
-        assert_eq!(list, [0, 1, 2]);
-    }
-
-    #[test]
-    fn test_next_perm_dupes() {
-        let mut list = ['a', 'a', 'b'];
-
-        assert_eq!(next_permutation(&mut list), true);
-        assert_eq!(list, ['a', 'b', 'a']);
-
-        assert_eq!(next_permutation(&mut list), true);
-        assert_eq!(list, ['b', 'a', 'a']);
-
-        assert_eq!(next_permutation(&mut list), false);
-        assert_eq!(list, ['a', 'a', 'b']);
-    }
 }
