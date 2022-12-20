@@ -7,7 +7,7 @@ use util::next_permutation;
 const INPUT: &str = include_str!("../input.txt");
 const VALVE_COUNT: usize = 15;
 const INITIAL_VALVE: &str = "AA";
-const TIME_LIMIT: i32 = 30;
+const TIME_LIMIT: i32 = 26;
 
 struct ValveDetails {
     flow_rate: i32,
@@ -94,7 +94,11 @@ impl ProcessedInput {
 
     // returns the total flow for visiting the sequence, and the number of entries in `sequence`
     // used before time runs out. this includes the valve that we were walking to when time ran out.
-    fn total_flow_for_sequence(&self, sequence: &[u8; VALVE_COUNT]) -> (i32, usize) {
+    fn total_flow_for_sequence(&self, sequence: &[u8]) -> (i32, usize) {
+        if sequence.is_empty() {
+            return (0, 0);
+        }
+
         let mut flow = 0;
         let mut time_remaining = TIME_LIMIT;
 
@@ -104,7 +108,7 @@ impl ProcessedInput {
         flow += time_remaining * self.flow_rates[sequence[0] as usize];
 
         let mut prev_valve = sequence[0];
-        for i in 1..VALVE_COUNT {
+        for i in 1..sequence.len() {
             let this_valve = sequence[i];
 
             time_remaining -= self.movement_costs[prev_valve as usize][this_valve as usize] as i32;
@@ -119,7 +123,7 @@ impl ProcessedInput {
             prev_valve = this_valve;
         }
 
-        (flow, VALVE_COUNT)
+        (flow, sequence.len())
     }
 }
 
@@ -160,60 +164,77 @@ fn shortest_paths_full(
     distances
 }
 
-fn main() {
-    let puzzle = ProcessedInput::load();
+// `valves` _must_ be ordred!
+fn highest_flow_for_valves(puzzle: &ProcessedInput, valves: &mut [u8]) -> i32 {
+    if valves.is_empty() {
+        return 0;
+    }
 
-    // for all permutations, (there's 15! of them, oof).
+    // for all permutations of the input set, walk through it and figure out how far we get, and
+    // how much flow is generated.
     //
-    // There's likely a better algorithm for this, it seems like a variant of the knapsack problem
-    // at first glance, but the scoring changing depending on which order you visit things is a
-    // twist i don't know how to deal with.
-    //
-    // 15! variations is ~40 bits though, so seems computable.
-    let mut current_perm = [0u8, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14];
-
+    // Then go to the next permutation, ignoring all permutations that affect unvisited valves for
+    // this solution (due to the `TIME_LIMIT`).
     let mut highest_score = 0;
-    let mut highest_scoring_perm = [0; VALVE_COUNT];
-
-    let mut permutations_checked = 0u64;
 
     loop {
-        if permutations_checked % 100000000 == 0 {
-            let solution_str: [&'static str; VALVE_COUNT] =
-                current_perm.map(|x| puzzle.valve_names[x as usize]);
-            println!("Checking {:?}...", solution_str);
-        }
-        permutations_checked += 1;
-
-        let (score, valves_used) = puzzle.total_flow_for_sequence(&current_perm);
+        let (score, valves_used) = puzzle.total_flow_for_sequence(valves);
 
         if score > highest_score {
             highest_score = score;
-            highest_scoring_perm = current_perm;
-
-            let solution_str: [&'static str; VALVE_COUNT] =
-                highest_scoring_perm.map(|x| puzzle.valve_names[x as usize]);
-            println!(
-                "New best is {:?} with flow of {}",
-                solution_str, highest_score
-            );
         }
 
+        // Go to the next permutation that would change outcome.
+        //
         // If only 5 entries in `current_perm` were used, we can skip to the next permutation that
         // modifies the front 5. next_permutation is lexographical order, so to get the next
         // permutation we reverse-sort the un-used values.
-
-        current_perm[valves_used..].sort_by(|l, r| r.cmp(l));
-
-        if !next_permutation(&mut current_perm) {
+        valves[valves_used..].sort_by(|l, r| r.cmp(l));
+        if !next_permutation(valves) {
             break;
         }
     }
 
-    let solution_str: [&'static str; VALVE_COUNT] =
-        highest_scoring_perm.map(|x| puzzle.valve_names[x as usize]);
-    println!(
-        "Total flow is {} for solution {:?}",
-        highest_score, solution_str
-    );
+    highest_score
+}
+
+fn main() {
+    let puzzle = ProcessedInput::load();
+
+    let mut highest_flow = 0;
+
+    // 15 puzzle inputs, so 15 bits available. iterate through all possibilities and track the best
+    let mut input_l = Vec::with_capacity(VALVE_COUNT);
+    let mut input_r = Vec::with_capacity(VALVE_COUNT);
+    for i in 0..2_u16.pow(VALVE_COUNT as u32) {
+        for v in 0u8..VALVE_COUNT as u8 {
+            let mask = 1 << v;
+            if i & mask == 0 {
+                input_l.push(v);
+            } else {
+                input_r.push(v);
+            }
+        }
+
+        let flow_l = highest_flow_for_valves(&puzzle, input_l.as_mut_slice());
+        let flow_r = highest_flow_for_valves(&puzzle, input_r.as_mut_slice());
+
+        let best_flow = flow_l + flow_r;
+        if best_flow > highest_flow {
+            // TODO: get out the permutation that was 'best' here. it's not needed for the answer,
+            //      but it'd be nice to see.
+            highest_flow = best_flow;
+            println!(
+                "best flow {} found for inputs:\n  {:?}\n  {:?}",
+                best_flow,
+                input_l.as_slice(),
+                input_r.as_slice()
+            );
+        }
+
+        input_l.clear();
+        input_r.clear();
+    }
+
+    println!("Total flow is {}", highest_flow);
 }

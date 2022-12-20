@@ -1,5 +1,9 @@
 // I genuinely can't find a crate that implements this. Maybe I should make one.
 pub fn next_permutation<T: Ord>(input: &mut [T]) -> bool {
+    if input.len() < 2 {
+        // len 0 or 1 input, there are no permutations
+        return false;
+    }
     // From wikipedia:
     //     The following algorithm generates the next permutation lexicographically after a
     // given permutation. It changes the given permutation in-place.
